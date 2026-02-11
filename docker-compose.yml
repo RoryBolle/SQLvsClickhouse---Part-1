@@ -1,0 +1,51 @@
+services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: mssql_db
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=YourStrong!Passw0rd
+    ports:
+      - "1433:1433"
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "YourStrong!Passw0rd", "-Q", "SELECT 1", "-C"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  clickhouse:
+    image: clickhouse/clickhouse-server
+    container_name: clickhouse_db
+    environment:
+      - CLICKHOUSE_DB=DemoDB
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=YourStrong!Passw0rd
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--user", "default", "--password", "YourStrong!Passw0rd", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  streamlit:
+    build: .
+    container_name: streamlit_app
+    ports:
+      - "8501:8501"
+    volumes:
+      - .:/app
+    environment:
+      - MSSQL_HOST=mssql
+      - MSSQL_USER=sa
+      - MSSQL_PASSWORD=YourStrong!Passw0rd
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=YourStrong!Passw0rd
+    depends_on:
+      mssql:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    command: sh -c "python data_engine.py && streamlit run app.py --server.port=8501 --server.address=0.0.0.0"
